@@ -1,6 +1,6 @@
 # Teste Prático para Engenheiro e Analista de Dados
 
-## Parte 2: Teste Prático (90 minutos)
+## Teste Prático (90 minutos)
 
 ### Cenário
 
