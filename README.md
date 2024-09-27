@@ -1,7 +1,5 @@
 # Teste Prático para Engenheiro e Analista de Dados
 
-## Teste Prático (90 minutos)
-
 ### Cenário
 
 Uma empresa está migrando dados de um sistema legado (representado por um banco de dados SQL) para sua nova arquitetura baseada em AWS. Você precisa criar um pipeline de dados que extraia informações do banco de dados, transforme-as e as carregue no Data Lake (S3).
