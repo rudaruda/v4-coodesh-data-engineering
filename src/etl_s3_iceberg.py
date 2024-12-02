@@ -36,7 +36,6 @@ def BulkInsertTRINO(x_dict:dict, x_tablename:str, x_cols:dict,x_batch=10):
         xx_dict = x_dict[(i-1)*x_batch:i*x_batch]
         xxx_dict = list_to_sqlvalues(xx_dict)
         x_count += len(xx_dict)
-        print(i, len(xx_dict))
         if len(xx_dict)==0:break
         try:
             x_query_insert = f"""INSERT INTO {x_tablename} ({x_cols}) VALUES {xxx_dict}"""
@@ -75,7 +74,7 @@ df_bronze = spark.read\
     .load()
 
 # SHOW SCHEMA OF TABLE
-print(f"SCHEMA DA TABELA '{TB_VENDAS}':")
+print(f"SCHEMA DA TABELA '{TB_VENDAS}': (orignal)")
 df_bronze.printSchema()
 
 # Count Rows DF_BRONZE for report
@@ -85,6 +84,9 @@ df_bronze_rows = df_bronze.count()
 # Transform STRING DATE "data_venda" TO DATE ISO 8601 FORMAT YYYY-MM-DD
 print('* Convertendo coluna "data_venda para DATE ISO8601')
 df_prata = df_bronze.withColumn("data_venda", F.to_date("data_venda", "yyyy-MM-dd"))
+print(f"SCHEMA DA TABELA '{TB_VENDAS}': (coluna 'dava_venda' tratata ISO8601)")
+df_prata.printSchema()
+
 
 ## 3. Remova quaisquer dados duplicados.
 # Remove Duplicates, if all rows contains same value by ID
@@ -185,7 +187,7 @@ df_prata2 = df_prata.withColumns({'dt_processamento':F.current_date(), 'year_dt_
 
 print("")
 print('TOP 5 REGISTROS: (última amostra antes de ingestão)')
-df_prata2.show(5)
+df_prata2.show(5, True)
 
 # Setando variaveis para ingestão
 df_prata_cols = df_prata2.columns
