@@ -1,7 +1,11 @@
 # ETL com Spark S3 Iceberg Local (MinIO+Nessie+Trino)
-Nesse projeto foquei no consumo de dados no formato **S3 Iceberg** que é praticamente uma solução absoluta quando se trata de armazenamento e leitura em cenários de altíssimo volume de dados.
+Foquei no consumo de dados no formato **S3 Iceberg** que é praticamente uma solução absoluta quando se trata de armazenamento e leitura em cenários de altíssimo volume de dados.
+
 Entretando para economizar em pesquisa em desenvolvimento, temos hoje alternativas para "subir" S3 Iceberg localmente.
-Claro que cada solução e ferramenta possuiram especificidades, ou seja, caracteristicas únicas que não serão identificas á plataforma da AWS, havendo até algums desvantagens. Mesmo assim,, vejo aqui já um grande avanço nesse sentido. Acredito que em breve, teremos ainda mais soluções OPEN SOURCE padronizadas (próximas) das soluções de mercado existentes.
+
+>Claro que cada solução e ferramenta possuiram especificidades, ou seja, caracteristicas únicas que não serão identificas á plataforma da AWS. Havendo até algums desvantagens que detalho final. 
+
+Mesmo assim,, vejo aqui já um grande avanço nesse sentido. Acredito que no futuro, teremos ainda mais soluções OPEN SOURCE padronizadas (próximas) das soluções de mercado existentes para atener aos requisitos de migração e multi-cloud.
 
 - ##### Como instalar
   - Execue o arquivo docker-compose.yaml na raiz do projeto. No caso eu fiz uso do PODMAN _(com docker também funciona)_:
@@ -25,7 +29,7 @@ Claro que cada solução e ferramenta possuiram especificidades, ou seja, caract
 ## Arquitetura da solução
 ![elementos de arquitetura](./img-files/S3_ICEBERG_LOCAL.jpg)
 
-Basicamente as plataformas que manipulam os dados se conectam com Trino. Esse por sua vez consegue habilita o acesso demócrático aos recursos do Nessie + MinIO que nos prove recurso do S3 Iceberg Localmente.
+Basicamente as plataformas/ferramentas que manipulam os dados se conectam com Trino. Esse por sua vez consegue habilita o acesso demócrático aos recursos do Nessie + MinIO que nos prove recurso do S3 Iceberg Localmente.
 
 
 - #### MinIO
@@ -51,40 +55,50 @@ Claro que existe diferença de arquitetura entre PODMANxDOCKER, porém, para des
   `v4_eng_s3_iceberg/src/sqlite-files/vendas.sql`
   ![evidencia SQLITE 02: SQL](./img-files/01-sqlite-sql.png)
   No PySpark foi preciso fazer uso de JDBC próprio para o SQlite, disponível em: https://github.com/xerial/sqlite-jdbc/releases
-    > spark = SparkSession.builder\
+```py
+    spark = SparkSession.builder\
     .config("spark.log.level", "ERROR")\
     .config("spark.jars", f"{SQLITE_JDBC}")\
     .appName("SQLITE_SPARK")\
-    .getOrCreate()<
+    .getOrCreate()
+```
 
    Script de carregamento dos dados, foi preciso colocar `customSchema` para tratar a coluna de `data_venda`.
-   > df_bronze = spark.read\
+```py
+df_bronze = spark.read\
     .format('jdbc')\
     .option("customSchema", "id INTEGER, data_venda STRING, id_produto INTEGER, id_cliente INTEGER, quantidade INTEGER, valor_unitario DECIMAL(10,2), valor_total DECIMAL(10,2), id_vendedor INTEGER, regiao VARCHAR(50)")\
     .options(driver="org.sqlite.JDBC", dbtable=TB_VENDAS, url=f"jdbc:sqlite:{SRC_DIR}/sqlite-files/vendas.db")\
     .load() 
+```
 
 ##### 2. Tratar campo de data, total vendas por dia e remoção de duplicados
 a) Tratando campo de data_venda:
 | antes | depois |
 | ----- | ------ |
-|![evidencia 02 DATA_VENDA antes](./img-files/02-data-before.png)| ![evidencia 02 DATA_VENDA depois](./img-files/02-data-before.png) |
-| data_venda tipo string | data_venda tipo date |
+|![evidencia 02 DATA_VENDA antes](./img-files/02-data-before.png)| ![evidencia 02 DATA_VENDA depois](./img-files/02-data-after.png) |
+| data_venda tipo **String** | data_venda tipo **Date** |
 
 Script para tratamento da coluna data_venda:
->df_prata = df_bronze.withColumn("data_venda", F.to_date("data_venda", "yyyy-MM-dd"))
+```py
+df_prata = df_bronze.withColumn("data_venda", F.to_date("data_venda", "yyyy-MM-dd")) 
+```
 
 b) Relatório total de vendas por dia:
 ![evidencia 02 TOTAL DIA](./img-files/02-total-dia.png)
 Script para geração do relatório:
-> (df_prata
+```py
+(df_prata
     .groupBy("data_venda")
     .agg(F.count("*").alias("# QTD"), F.sum("valor_total").alias("R$ TOTAL"))
     .orderBy("data_venda")
     .show())
+```
 
 c) Script para remoção de duplicados:
-> df_prata = df_prata.dropDuplicates(['id'])
+```py
+df_prata = df_prata.dropDuplicates(['id'])
+```
 
 ##### 3. Carregamento dos dados para S3 Iceberg
 ![evidencia 03 S3 Iceberg](./img-files/03-s3-iceberg.png)
@@ -95,7 +109,8 @@ No MinIO visulizamos claramente a distribuição da partição dos arquivos em A
 Foram criadas duas funcões para "simular" essa ação:
 `BulkInsertTRINO()` que realiza o insert do dado no formato S3 Iceberg Parquet, por batch, para gerenciar perfomance de infra.
 `list_to_sqlvalues` que recebe o dado bruto e o trata para prevenir eventutais problemas que o formato PARQUET exige.
-> CREATE TABLE IF NOT EXISTS iceberg.db.tb_vendas (
+```sql
+CREATE TABLE IF NOT EXISTS iceberg.db.tb_vendas (
 	dt_processamento DATE,
 	year_dt_venda INTEGER NOT NULL,
 	month_dt_venda INTEGER NOT NULL,
@@ -115,13 +130,14 @@ WITH (
  	partitioning=ARRAY['year_dt_venda','month_dt_venda','day_dt_venda'],
 	sorted_by = ARRAY['year_dt_venda','month_dt_venda','day_dt_venda']
 )
-
+```
 O Particionamento da tabela acontece na criação da tabela. No caso precisei fazer uso de um artificio técnico para reproduzir o particionamento por ANO, MÊS e DIA. Criando 3 colunas a mais fazendo uso especificamente delas para deixar a participação no formato desejado. 
 No S3 AWS esse artificio é desnecessário, lá é possivel realizar essa indexação com apenas uma coluna de data.
 
 ##### 4. TOTAL DE VENDA POR MÊS (query S3 Athena)
 ![evidencia 04 Query Athena](./img-files/04-query-athena.png)
-> WITH cte AS (
+```sql
+WITH cte AS (
     SELECT 
         year_dt_venda
         ,month_dt_venda
@@ -136,11 +152,18 @@ SELECT
 FROM cte
 GROUP BY year_dt_venda, month_dt_venda
 ORDER BY year_dt_venda desc, month_dt_venda desc
-
+```
 O AWS Athena realiza a cobrança pela transferencia do dado de saída. Logo fazer do `WITH cte AS(` para higienizar o dado antes da saída final é uma boa prática que pode trazer economia para os processos.
 
 ##### 5. Visualização
-[Metabase]
+![evidencia 05 dashboard](./img-files/05-dashboard.png)
+Produzi o dashboard no Metabase. Nele podemos ver que Abril foi um dos melhores meses de faturamento. Que o "Produto 101" é o mais vendido, que o "Vendedor 11" é nosso melhor comercial.
+A região que mais vende é a Leste e que a menos vende é Norte. No último quarter do ano de 2023 a região Leste bateu recorde de vendas.
+![evidencia 05 metabase](./img-files/05-metabase.png)
+A escolha do Metabase como ferramenta de analitics foi pela interfacie amigavel e facilidade de tirar insigths. Não chega a ser uma ferramenta de advanced-analitcs, mas cumpre bem a missão de fazer o simples bem-feito.
 
 ## Conclusão
 Como nem tudo são flores... Não foi possível conectar o SPARK diretamente ao NESSIE+MINIO (o que traria maior performance). Embora exista documentação na página dos desenvolvedore, depois de muitos testes *(acredite!)*. Concluí que até pode ser uma possíbilidade, entretanto no ambiente local com praticamente 1 core executando em cada aplicação e poquissíma mémoria não foi possivel os demais experimentar cenários com hardware mais potente.
+A pesquisa sobre a solução do S3 iceberg num ambiente local foi que mais me consumiu tempo e esforço. Principalmente porque as ferramentas OPEN SOURCE disponíveis ainda não estão complementa maduradas e são promissoras. Porém ainda existem muitos bugs a serem corrigidos e recursos a serem desenvovidos por isso o uso delas deve ser com cautela. 
+Fiquei com desejo de colocar mais diagramas de arquietura com detalhes de cada etapa de conectivide, porém o tempo não me permitiu.
+Me diverti, penso que é conhecimento rico que provoca os pensamentos para futuros esforços de migração de dados considerando o multi-cloud.
