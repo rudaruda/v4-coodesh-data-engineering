@@ -1,3 +1,7 @@
+Teste realizado! [* link: objetivos desse teste](../README.md)
+
+---------
+
 # ETL com Spark S3 Iceberg Local (MinIO+Nessie+Trino)
 Foquei no consumo de dados no formato **S3 Iceberg** que é praticamente uma solução absoluta quando se trata de armazenamento e leitura em cenários de altíssimo volume de dados.
 
