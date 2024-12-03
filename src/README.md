@@ -1,4 +1,4 @@
-Teste realizado! [* link: objetivos desse teste](../README.md)
+Teste realizado! [* voltar para o objetivo do teste](../README.md)
 
 ---------
 
