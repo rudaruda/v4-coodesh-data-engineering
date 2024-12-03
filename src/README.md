@@ -83,6 +83,7 @@ a) Tratando campo de data_venda:
 |![evidencia 02 DATA_VENDA antes](./img-files/02-data-before.png)| ![evidencia 02 DATA_VENDA depois](./img-files/02-data-after.png) |
 | data_venda tipo **String** | data_venda tipo **Date** |
 
+
 Script para tratamento da coluna data_venda:
 ```py
 df_prata = df_bronze.withColumn("data_venda", F.to_date("data_venda", "yyyy-MM-dd")) 
@@ -90,6 +91,7 @@ df_prata = df_bronze.withColumn("data_venda", F.to_date("data_venda", "yyyy-MM-d
 
 b) Relatório total de vendas por dia:
 ![evidencia 02 TOTAL DIA](./img-files/02-total-dia.png)
+
 Script para geração do relatório:
 ```py
 (df_prata
